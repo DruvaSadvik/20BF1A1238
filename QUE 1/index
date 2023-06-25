@@ -1,0 +1,105 @@
+const axios = require("axios");
+const express = require("express");
+
+const app = express();
+const port = process.env.PORT || 3006;
+
+app.use(express.json());
+
+app.get("/", (req, res) => {
+  res.send("Hello World!");
+});
+
+app.get("/numbers", async (req, res) => {
+  try {
+    const { urls } = req.query;
+    if (!urls || !Array.isArray(urls)) {
+      res.status(400).send("Invalid URL parameter");
+      return;
+    }
+
+    const validUrls = urls.filter((url) => {
+      try {
+        new URL(url);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    });
+
+    const numbers = await Promise.all(
+      validUrls.map((url) => fetchNumbersFromUrl(url))
+    );
+
+    const uniqueNumbers = [...new Set(numbers.flat())].sort((a, b) => a - b);
+
+    res.send(uniqueNumbers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.get("/prefixes", (req, res) => {
+  try {
+    const { keywords } = req.query;
+    if (!keywords || typeof keywords !== "string") {
+      res.status(400).send("Invalid keywords parameter");
+      return;
+    }
+
+    const requestWords = keywords.split(",");
+
+    const storedKeywords = [
+      "bonfire",
+      "cardio",
+      "case",
+      "character",
+      "bonsai",
+    ];
+
+    const resJson = requestWords.map((word) => {
+      if (storedKeywords.includes(word)) {
+        const prefix = storedKeywords.find(
+          (storedWord) =>
+            storedWord !== word && word.startsWith(storedWord)
+        );
+        return {
+          keyword: word,
+          status: prefix ? "found" : "not_found",
+          prefix: prefix || "not_applicable",
+        };
+      } else {
+        return {
+          keyword: word,
+          status: "not_found",
+          prefix: "not_applicable",
+        };
+      }
+    });
+
+    res.send(resJson);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.listen(port, () => {
+  console.log("Listening on port", port);
+});
+
+const fetchNumbersFromUrl = async (url) => {
+  try {
+    const response = await axios.get(url, { timeout: 400 });
+    if (response.status === 200 && Array.isArray(response.data.numbers)) {
+      return response.data.numbers.filter((number) =>
+        Number.isInteger(number)
+      );
+    }
+    return [];
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
